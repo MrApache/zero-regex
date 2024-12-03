@@ -1,8 +1,7 @@
 using System.Text.RegularExpressions;
 using BenchmarkDotNet.Attributes;
-using RefinedShell.Matching.Test;
 
-namespace RefinedShell.Tests.Benchmark;
+namespace ZeroRegex.Benchmark;
 
 [MemoryDiagnoser]
 public class RegexPerformance
@@ -11,7 +10,7 @@ public class RegexPerformance
     private readonly Regex _regex = new Regex(_pattern);
     //private readonly Matcher _matcher = new Matcher(_pattern);
     private readonly Pattern _pt = PatternBuilder.Build(_pattern);
-    private readonly Regex _compiledRegex = new Regex(_pattern, RegexOptions.Compiled);
+    private readonly Regex _compiledRegex = new Regex(_pattern, System.Text.RegularExpressions.RegexOptions.Compiled);
 
     [Benchmark]
     public void SystemRegex()
@@ -41,7 +40,7 @@ public class RegexPerformance
     [Benchmark]
     public void CompiledSystemRegexInit()
     {
-        Regex compiledRegex = new Regex(_pattern, RegexOptions.Compiled);
+        Regex compiledRegex = new Regex(_pattern, System.Text.RegularExpressions.RegexOptions.Compiled);
     }
 
     [Benchmark]

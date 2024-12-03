@@ -1,7 +1,7 @@
 namespace ZeroRegex
 {
-  internal abstract class RuleBuilder
+  internal interface IRuleBuilder
   {
-    public abstract
+    public Rule Build();
   }
 }
