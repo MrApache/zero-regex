@@ -104,11 +104,12 @@ internal sealed class ParserTestCases
         new PatternTestCase("(ab)", "ab", "ab"),
         new PatternTestCase("(ab)+", "abab", "abab"),
         //new PatternTestCase("(ab)*", "", ""),
+
         new PatternTestCase("(ab)?", "ab", "ab"),
         new PatternTestCase("(ab|cd)", "ab", "ab"),
         new PatternTestCase("(ab|cd)", "cd", "cd"),
         new PatternTestCase("(ab|cd)+", "ababcdcd", "ababcdcd"),
-        new PatternTestCase(@"(abc)+\d", "abc123", "abc123"),
+        new PatternTestCase(@"(abc)+\d+", "abc123", "abc123"),
         new PatternTestCase("(a|b)(c|d)", "ac", "ac"),
         new PatternTestCase("(a|b)(c|d)", "bd", "bd"),
         new PatternTestCase("((a|b)+)(c|d)+", "ababd", "ababd"),

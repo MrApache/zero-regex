@@ -34,27 +34,34 @@ namespace ZeroRegex
 
   internal sealed class ClassBuilder : IRuleBuilder
   {
-    private readonly List<Range> _ranges;
+    public readonly List<Range> Ranges;
+    public bool Quantifiable => true;
+    public bool IsEmpty => Ranges.Count == 0;
 
-    public ClassBuilder()
+    public ClassBuilder(params Range[] ranges)
     {
-      _ranges = new List<Range>();
+      Ranges = new List<Range>(ranges);
     }
 
     public void Exclude(Range[] values)
     {
       List<Range> list = new List<Range>();
-      foreach (Range range in _ranges) {
+      foreach (Range range in Ranges) {
         list.AddRange(PatternBuilder.ExcludeRanges(range, values));
       }
 
-      _ranges.Clear();
-      _ranges.AddRange(PatternBuilder.MergeRanges(list));
+      Ranges.Clear();
+      Ranges.AddRange(PatternBuilder.MergeRanges(list));
     }
 
     public Rule Build()
     {
-      return new Class(_ranges.ToArray());
+      return new Class(Ranges.ToArray());
+    }
+
+    public ClassBuilder GetClassBuilder()
+    {
+      return this;
     }
   }
 }

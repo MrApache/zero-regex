@@ -6,8 +6,6 @@ namespace ZeroRegex
     private readonly int _min;
     private readonly int _max;
 
-    public bool IsGreedy => _max == int.MaxValue;
-
     public Count(Rule rule, int x, int y)
     {
       _rule = rule;
@@ -29,22 +27,32 @@ namespace ZeroRegex
 
       return count >= _min && count <= _max;
     }
+  }
+  
+  internal sealed class QuantifierBuilder : IRuleBuilder
+  {
+    public bool Quantifiable => false;
+    public bool IsEmpty => Target.IsEmpty;
+    public bool IsGreedy => _max == int.MaxValue;
+    public readonly IRuleBuilder Target;
+    private readonly int _min;
+    private readonly int _max;
 
-    public override void Exclude(Range[] values)
+    public QuantifierBuilder(int min, int max, IRuleBuilder target)
     {
-      _rule.Exclude(values);
+      _min = min;
+      _max = max;
+      Target = target;
     }
 
-    public override Class? GetClass()
+    public Rule Build()
     {
-      if (_rule is Class rule)
-        return rule;
-      return null;
+      return new Count(Target.Build(), _min, _max);
     }
 
-    //public override bool Contains(Range[] values)
-    //{
-    //  return _rule.Contains(values);
-    //}
+    public ClassBuilder? GetClassBuilder()
+    {
+      return Target.GetClassBuilder();
+    }
   }
 }

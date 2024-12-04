@@ -49,8 +49,7 @@ namespace ZeroRegex
     {
       _pattern = pattern;
 
-      Rule[] parts = GetAllParts();
-      Pattern result = new Pattern(parts, _anchors);
+      Pattern result = new Pattern(BuildRules(GetAllBuilders()), _anchors);
 
       _position = 0;
       _pattern = string.Empty;
@@ -58,61 +57,64 @@ namespace ZeroRegex
       return result;
     }
 
-    private static Rule[] GetAllParts()
+    private static IRuleBuilder[] GetAllBuilders()
     {
-      Stack<RuleInfo> parts = new Stack<RuleInfo>(PATTERN_CAPACITY);
+      Stack<IRuleBuilder> builders = new Stack<IRuleBuilder>(PATTERN_CAPACITY);
 
       while (_position < _pattern.Length) {
-        GetPart(parts);
+        GetBuilder(builders);
         _position++;
       }
 
-      List<RuleInfo> list = new List<RuleInfo>(parts);
-
-      //abc
-      //for (int i = 0; i < list.Count - 1; i++)
-      //{
-      //  RuleInfo first = list[i]; //c
-      //  RuleInfo second = list[i + 1]; //b
-
-      //  if (second.IsGreedy) {
-      //    Count count = (Count)second.Rule;
-      //    if(count.GetClass() == null)
-      //      continue;
-      //    if(first.Rule.GetClass() == null)
-      //      continue;
-      //    first.Rule.GetClass()!.Exclude(count.GetClass()!.Ranges);
-      //    if (first.Rule.GetClass()!.Ranges.Length == 0)
-      //      list.RemoveAt(i--);
-      //    //count.Exclude(first.Rule.GetClass()!.Ranges);
-      //  }
-      //}
-
-      return parts.Reverse().Select(r => r.Rule).ToArray();
-      //list.Reverse();
-      //return list.Select(r => r.Rule).ToArray();
+      List<IRuleBuilder> fixedBuilder = FixGreedQuantifiers(builders);
+      fixedBuilder.RemoveAll(b => b.IsEmpty);
+      fixedBuilder.Reverse();
+      return fixedBuilder.ToArray();
     }
 
-    private static RuleInfo PopQuantifiableOrThrowException(Stack<RuleInfo> parts)
+    private static List<IRuleBuilder> FixGreedQuantifiers(Stack<IRuleBuilder> builders)
     {
-      RuleInfo rule = PopOrThrowException(parts);
-      if (!rule.Quantifiable) {
+      List<IRuleBuilder> list = new List<IRuleBuilder>(builders);
+
+      for (int i = 0; i < list.Count - 1; i++)
+      {
+        IRuleBuilder first = list[i];
+        IRuleBuilder second = list[i + 1];
+
+        if (!second.Quantifiable) {
+          ClassBuilder? secondClass = second.GetClassBuilder();
+          if(secondClass == null)
+            continue;
+          ClassBuilder? firstClass = first.GetClassBuilder();
+          if(firstClass == null)
+            continue;
+          firstClass.Exclude(secondClass.Ranges.ToArray());
+        }
+      }
+
+      return list;
+    }
+
+    private static IRuleBuilder PopQuantifiableOrThrowException(Stack<IRuleBuilder> builders)
+    {
+      IRuleBuilder builder = PopOrThrowException(builders);
+      if (!builder.Quantifiable) {
         throw new Exception("TODO");
       }
 
-      return rule;
+      return builder;
     }
 
-    private static RuleInfo PopOrThrowException(Stack<RuleInfo> parts)
+    private static IRuleBuilder PopOrThrowException(Stack<IRuleBuilder> builders)
     {
-      if (!parts.TryPop(out RuleInfo part)) {
+      if (!builders.TryPop(out IRuleBuilder builder)) {
         throw new ArgumentException($"parsing \"{_pattern}\" - Quantifier {{x,y}} following nothing.");
       }
 
-      return part;
+      return builder;
     }
 
-    private static void GetPart(Stack<RuleInfo> parts)
+    private static void GetBuilder(Stack<IRuleBuilder> parts)
     {
       Token token = GetToken();
       char currentChar = token.Value;
@@ -129,75 +131,60 @@ namespace ZeroRegex
         }
         case '|' when IsInsideTheText(_position, _pattern.Length) && IsMetaCharacter(token):
         {
-          RuleInfo left = parts.Pop();
-          _position++;
-          GetPart(parts);
-          RuleInfo right = parts.Pop();
-          Or or = new Or(left.Rule, right.Rule);
-          parts.Push(new RuleInfo(or, true, false));
+          IRuleBuilder left = parts.Pop();
+          IRuleBuilder right = ParseRightRuleBuilder();
+          OrBuilder orBuilder = new OrBuilder(left, right);
+          parts.Push(orBuilder);
           break;
         }
         case 's' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_whitespaces);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _whitespaces);
           break;
         }
         case 'S' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_nonWhitespaces);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _nonWhitespaces);
           break;
         }
         case 'd' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_numbers);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _numbers);
           break;
         }
         case 'D' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_nonNumbers);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _nonNumbers);
           break;
         }
         case 'w' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_wordCharacters);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _wordCharacters);
           break;
         }
         case 'W' when token.Type == TokenType.MetaEscape:
         {
-          Class cl = new Class(_nonWordCharacters);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _nonWordCharacters);
           break;
         }
         case '.' when token.Type == TokenType.MetaCharacter:
         {
-          Class cl = new Class(_allExceptNewline);
-          parts.Push(new RuleInfo(cl, true, false));
+          PushClass(parts, _allExceptNewline);
           break;
         }
         case '*' when token.Type == TokenType.MetaCharacter:
         {
-          RuleInfo rule = PopQuantifiableOrThrowException(parts);
-          Count count = new Count(rule.Rule, 0, int.MaxValue);
-          parts.Push(new RuleInfo(count, false, true));
+          PushQuantifier(parts, 0, int.MaxValue);
           break;
         }
         case '+' when token.Type == TokenType.MetaCharacter:
         {
-          RuleInfo rule = PopQuantifiableOrThrowException(parts);
-          Count count = new Count(rule.Rule, 1, int.MaxValue);
-          parts.Push(new RuleInfo(count, false, true));
+          PushQuantifier(parts, 1, int.MaxValue);
           break;
         }
         case '?' when token.Type == TokenType.MetaCharacter:
         {
-          RuleInfo rule = PopQuantifiableOrThrowException(parts);
-          Count count = new Count(rule.Rule, 0, 1);
-          parts.Push(new RuleInfo(count, false, false));
+          PushQuantifier(parts, 0, 1);
           break;
         }
         case '[' when token.Type == TokenType.MetaCharacter:
@@ -214,29 +201,85 @@ namespace ZeroRegex
         }
         case '{' when token.Type == TokenType.MetaCharacter:
         {
-          RuleInfo rule = PopQuantifiableOrThrowException(parts);
+          IRuleBuilder builder = GetPreviousQuantifiableOrThrowException(parts);
           _position++;
-          Count? count = ParseCount(rule.Rule);
-          if (count == null) {
-            parts.Push(rule);
+          QuantifierBuilder? quantifierBuilder = ParseCustomQuantifier(builder);
+          if (quantifierBuilder == null) {
+            parts.Push(builder);
             _position--;
             goto default;
           }
 
-          parts.Push(new RuleInfo(count, false, count.IsGreedy));
+          parts.Push(quantifierBuilder);
           break;
         }
         default:
         {
-          Range[] ranges = { new Range(currentChar) };
-          Class cl = new Class(ranges);
-          parts.Push(new RuleInfo(cl, true, false));
+          if(!parts.TryPop(out IRuleBuilder result)) {
+            CharByCharBuilder builder = new CharByCharBuilder();
+            builder.Push(currentChar);
+            parts.Push(builder);
+            break;
+          }
+
+          if (result is CharByCharBuilder charByCharBuilder) {
+            charByCharBuilder.Push(currentChar);
+            parts.Push(charByCharBuilder);
+          }
+          else {
+            parts.Push(result);
+            CharByCharBuilder builder = new CharByCharBuilder();
+            builder.Push(currentChar);
+            parts.Push(builder);
+          }
           break;
         }
       }
     }
 
-    private static Count? ParseCount(Rule target)
+    //TODO
+    private static IRuleBuilder ParseRightRuleBuilder()
+    {
+      int previousPosition = _position;
+      string mainPattern = _pattern;
+
+      string groupSlice = _pattern.AsSpan(++_position, _pattern.Length - _position).ToString();
+
+      _pattern = groupSlice;
+      _position = 0;
+
+      IRuleBuilder[] builders = GetAllBuilders();
+
+      _position = groupSlice.Length + previousPosition;
+      _pattern = mainPattern;
+      return new GroupBuilder(builders);
+    }
+
+    private static IRuleBuilder GetPreviousQuantifiableOrThrowException(Stack<IRuleBuilder> parts)
+    {
+      IRuleBuilder builder = PopQuantifiableOrThrowException(parts);
+      if (builder is CharByCharBuilder charByCharBuilder) {
+        Range range = charByCharBuilder.Pop();
+        builder = new ClassBuilder(range);
+      }
+
+      return builder;
+    }
+
+    private static void PushQuantifier(Stack<IRuleBuilder> parts, int min, int max)
+    {
+      IRuleBuilder builder = GetPreviousQuantifiableOrThrowException(parts);
+      QuantifierBuilder quantifierBuilder = new QuantifierBuilder(min, max, builder);
+      parts.Push(quantifierBuilder);
+    }
+
+    private static void PushClass(Stack<IRuleBuilder> parts, Range[] ranges)
+    {
+      ClassBuilder classBuilder = new ClassBuilder(ranges);
+      parts.Push(classBuilder);
+    }
+
+    private static QuantifierBuilder? ParseCustomQuantifier(IRuleBuilder target)
     {
       int close = _pattern.IndexOf('}', _position);
       ReadOnlySpan<char> count = _pattern.AsSpan(_position, close - _position);
@@ -281,37 +324,63 @@ namespace ZeroRegex
       }
 
       _position += count.Length;
-      return new Count(target, first, second);
+      return new QuantifierBuilder(first, second, target);
     }
 
-    private static RuleInfo ParseGroup()
+    private static int GetEndOfGroup()
+    {
+      int count = 1;
+      ReadOnlySpan<char> groupSlice = _pattern.AsSpan(_position);
+
+      for (int i = 0; i < groupSlice.Length; i++) {
+        Token token = GetToken(groupSlice, ref i);
+        char currentChar = token.Value;
+        switch (currentChar) {
+          case '(' when token.Type == TokenType.MetaCharacter:
+            count++;
+            break;
+          case ')' when token.Type == TokenType.Symbol:
+          {
+            if (count == 1) {
+              return i + _position;
+            }
+            count--;
+            break;
+          }
+        }
+      }
+
+      throw new Exception($"Incomplete group structure at pos {_position - 1}");
+    }
+
+    private static GroupBuilder ParseGroup()
     {
       int previousPosition = _position;
       string mainPattern = _pattern;
 
-      int close = _pattern.IndexOf(')', _position);
+      //int close = _pattern.IndexOf(')', _position);
+      int close = GetEndOfGroup();
       string groupSlice = _pattern.AsSpan(_position, close - _position).ToString();
 
       _pattern = groupSlice;
       _position = 0;
 
-      Rule[] parts = GetAllParts();
+      IRuleBuilder[] builders = GetAllBuilders();
 
       _position = groupSlice.Length + previousPosition;
       _pattern = mainPattern;
-      Group group = new Group(parts);
-      return new RuleInfo(group, true, false);
+      return new GroupBuilder(builders);
     }
 
-    private static RuleInfo ParseClass()
+    private static ClassBuilder ParseClass()
     {
       int close = _pattern.IndexOf(']', _position);
       ReadOnlySpan<char> classSlice = _pattern.AsSpan(_position, close - _position);
       List<Range> ranges = new List<Range>(CLASS_CAPACITY);
       ParseClass(ranges, classSlice);
-      Class cl = new Class(MergeRanges(ranges));
+      ClassBuilder builder = new ClassBuilder(MergeRanges(ranges));
       _position += classSlice.Length;
-      return new RuleInfo(cl, true, false);
+      return builder;
     }
 
     private static void ParseClass(List<Range> rangeArray, ReadOnlySpan<char> cl)
@@ -562,9 +631,19 @@ namespace ZeroRegex
       return token.Type == TokenType.MetaEscape;
     }
 
+    private static bool IsSymbol(Token token)
+    {
+      return token.Type == TokenType.Symbol;
+    }
+
     private static bool IsInsideTheText(int position, int length)
     {
       return position != 0 && position != length - 1;
+    }
+
+    private static Rule[] BuildRules(IRuleBuilder[] builders)
+    {
+      return builders.Select(b => b.Build()).ToArray();
     }
   }
 }

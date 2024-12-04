@@ -8,6 +8,9 @@ internal sealed class MatchingTest
     [Test]
     public void Test()
     {
+        Pattern orr = PatternBuilder.Build("((a|b)+)(c|d)+");
+        Match mtor = orr.Match("ababd");
+
         //Pattern pattern = PatternBuilder.Build(@"[\w]+[\d]+[!@#]?");
         //Match match = pattern.Match("abc123!");
 
@@ -15,7 +18,7 @@ internal sealed class MatchingTest
         //Match mt = pt.Match("abc123@");
 
 
-        Pattern tt = PatternBuilder.Build(@"[a-z]");
-        Match ttm = tt.Match("ab");
+        //Pattern tt = PatternBuilder.Build(@"[a-z]");
+        //Match ttm = tt.Match("ab");
     }
 }
