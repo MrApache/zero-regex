@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 
 namespace ZeroRegex
 {
@@ -61,7 +62,8 @@ namespace ZeroRegex
 
     public override int GetHashCode()
     {
-      return HashCode.Combine(Start, End);
+      //return HashCode.Combine(Start, End);
+      return (Start << 16) + End;
     }
 
     public Enumerator GetEnumerator()
@@ -114,6 +116,83 @@ namespace ZeroRegex
 
       result = null;
       return false;
+    }
+
+    public static Range[] MergeRanges(List<Range> ranges)
+    {
+      if (ranges.Count < 2)
+        return ranges.ToArray();
+
+      ranges.Sort();
+
+      int skip = 0;
+      while (true) {
+        Range first = default;
+        Range second = default;
+
+        int count = 0;
+        int skipped = 0;
+        foreach (Range range in ranges) {
+          if (skipped < skip) {
+            skipped++;
+            continue;
+          }
+
+          if (count == 0) {
+            first = range;
+          }
+          else if (count == 1) {
+            second = range;
+          }
+          else {
+            break;
+          }
+
+          count++;
+        }
+
+        if (count <= 1)
+          break;
+
+        if (TryMerge(first, second, out Range? result)) {
+          ranges.Remove(first);
+          ranges.Remove(second);
+          ranges.Add(result.Value);
+        }
+        else {
+          skip++;
+        }
+      }
+
+      return ranges.ToArray();
+    }
+
+    public static Range[] ExcludeRanges(Range target, params Range[] ranges)
+    {
+      List<Range> result = new List<Range> { target };
+
+      foreach (Range range in ranges) {
+        List<Range> newResult = new List<Range>();
+
+        foreach (Range current in result) {
+          if (current.End < range.Start || current.Start > range.End) {
+            newResult.Add(current);
+          }
+          else {
+            if (current.Start < range.Start) {
+              newResult.Add(new Range(current.Start, (char)(range.Start - 1)));
+            }
+
+            if (current.End > range.End) {
+              newResult.Add(new Range((char)(range.End + 1), current.End));
+            }
+          }
+        }
+
+        result = newResult;
+      }
+
+      return MergeRanges(result);
     }
 
     public struct Enumerator : IEnumerator<char>

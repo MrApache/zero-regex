@@ -51,18 +51,6 @@ namespace ZeroRegex.Utils
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Append(TempArray<char> array)
-    {
-      if (array.Length + _position >= _buffer.Length) {
-        Resize();
-      }
-
-      for (int i = 0; i < array.Length; i++) {
-        _buffer[_position++] = array[i];
-      }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Resize()
     {
       char[] heapBuffer = new char[_buffer.Length * 2];
@@ -103,11 +91,19 @@ namespace ZeroRegex.Utils
         Append('-');
       }
 
+      Span<char> span = stackalloc char[IntMaxCharsCount];
+      int index = span.Length - 1;
+
       while (value > 0) {
         char ch = (char)(value % 10 + FirstNumberChar);
-        Append(ch);
+        span[index--] = ch;
+        //Append(ch);
         value /= 10;
       }
-    }    
+
+      for (int i = index; i < span.Length; i++) {
+        Append(span[i]);
+      }
+    }
   }
 }

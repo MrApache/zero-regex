@@ -4,7 +4,7 @@ namespace ZeroRegex
 {
   public sealed class Matcher
   {
-    private readonly Rule[] _parts;
+    private readonly RegexNode[] _parts;
     private readonly Anchor _anchors;
 
     public Matcher(string pattern)
@@ -50,7 +50,7 @@ namespace ZeroRegex
       int start = -1;
       int length = 0;
       for (int offset = 0; offset < input.Length; offset++) {
-        foreach (Rule rule in _parts) {
+        foreach (RegexNode rule in _parts) {
           MatchContext context = new MatchContext(input);
           context.Start = start == -1 ? offset : start + length;
           bool status = rule.Evaluate(ref context);

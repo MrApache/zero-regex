@@ -1,13 +1,11 @@
 namespace ZeroRegex
 {
-  internal sealed class Or : Rule
+  internal sealed class Or : RegexNode
   {
-    private readonly Rule _left;
-    private readonly Rule _right;
+    private readonly RegexNode _right;
 
-    public Or(Rule left, Rule right)
+    public Or(RegexNode left, RegexNode right) : base(left, true)
     {
-      _left = left;
       _right = right;
     }
 
@@ -15,8 +13,7 @@ namespace ZeroRegex
     {
       int start = context.Start;
       int length = context.Length;
-      bool leftResult = _left.Evaluate(ref context);
-      if (!leftResult) {
+      if (!Node!.Evaluate(ref context)) {
         context.Start = start;
         context.Length = length;
         return _right.Evaluate(ref context);
@@ -24,32 +21,51 @@ namespace ZeroRegex
 
       return true;
     }
-  }
 
-  internal sealed class OrBuilder : IRuleBuilder
-  {
-    public bool Quantifiable => true;
-    public bool IsEmpty => false; //TODO
-
-    private readonly IRuleBuilder _left;
-    private readonly IRuleBuilder _right;
-
-    public OrBuilder(IRuleBuilder left, IRuleBuilder right)
+    public override string GenerateMethod(GeneratorContext context)
     {
-      _left = left;
-      _right = right;
+      string leftMethod = Node!.GenerateMethod(context);
+      string rightMethod = _right.GenerateMethod(context);
+      context.InvokationList.Remove(leftMethod);
+      context.InvokationList.Remove(rightMethod);
+
+      string code = $@"
+      int tempStart = {context.StartIntVariable};
+      int tempLength = {context.LengthIntVariable};
+      if (!{context.CreateMethodInvokation(leftMethod)}) {{
+        {context.StartIntVariable} = tempStart;
+        {context.LengthIntVariable} = tempLength;
+        return {context.CreateMethodInvokation(rightMethod)};
+      }}
+      return true;";
+      string name = CreateUniqueMethodName("Or");
+      context.MethodDeclarations.Add(name, new Method(name, code));
+      context.InvokationList.Add(name);
+      return name;
     }
 
-    public Rule Build()
+    public override RegexNode? Rebuild()
     {
-      Rule left = _left.Build();
-      Rule right = _right.Build();
+      RegexNode? left = Node!.Rebuild();
+      RegexNode? right = _right.Rebuild();
+
+      if (left == null && right == null)
+        return null;
+
+      if (left == null)
+        return right;
+
+      if (right == null)
+        return left;
+
       return new Or(left, right);
     }
 
-    public ClassBuilder? GetClassBuilder()
+    /*
+    public override bool CanMerge(RegexNode a)
     {
-      return null;
+      return false;
     }
+  */
   }
 }

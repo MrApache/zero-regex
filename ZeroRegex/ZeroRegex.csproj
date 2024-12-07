@@ -1,8 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>enable</Nullable>
+        <TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableSkipLocalsInit>true</EnableSkipLocalsInit>
+        <Optimize>true</Optimize>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Version>1.0.1</Version>
     </PropertyGroup>
 
 </Project>

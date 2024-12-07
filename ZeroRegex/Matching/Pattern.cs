@@ -1,16 +1,15 @@
 using System;
+using System.Text;
 
 namespace ZeroRegex
 {
   public sealed class Pattern
   {
-    private readonly Rule[] _parts;
-    private readonly Anchor _anchors;
+    private readonly RegexNode[] _parts;
 
-    internal Pattern(Rule[] parts, Anchor anchor)
+    internal Pattern(RegexNode[] parts)
     {
       _parts = parts;
-      _anchors = anchor;
     }
 
     public Match Match(string input)
@@ -19,7 +18,7 @@ namespace ZeroRegex
       int length = 0;
       ReadOnlySpan<char> span = input;
       for (int offset = 0; offset < input.Length; offset++) {
-        foreach (Rule rule in _parts) {
+        foreach (RegexNode rule in _parts) {
           MatchContext context = new MatchContext(span);
           context.Start = start == -1 ? offset : start + length;
           bool status = rule.Evaluate(ref context);
@@ -28,9 +27,9 @@ namespace ZeroRegex
 
           if (start == -1) {
             start = context.Start;
-            if ((_anchors & Anchor.StartOfLine) != 0 && start != 0) {
-              return new Match(0, 0, false);
-            }
+            //if ((_anchors & Anchor.StartOfLine) != 0 && start != 0) {
+            //  return new Match(0, 0, false);
+            //}
           }
 
           length = context.Start + context.Length - start;
@@ -41,11 +40,22 @@ namespace ZeroRegex
         return new Match(0, 0, false);
       }
 
-      if ((_anchors & Anchor.EndOfLine) != 0 && start + length != input.Length) {
-        return new Match(0, 0, false);
-      }
+      //if ((_anchors & Anchor.EndOfLine) != 0 && start + length != input.Length) {
+      //  return new Match(0, 0, false);
+      //}
 
       return new Match(start, length, true);
+    }
+
+    internal string GenerateCode(GeneratorContext context)
+    {
+      StringBuilder sb = new StringBuilder();
+      foreach (RegexNode rule in _parts) {
+        sb.Append(rule.GenerateMethod(context));
+        sb.AppendLine();
+      }
+
+      return sb.ToString();
     }
   }
 }
